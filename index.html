@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BluePrint AI — Advanced Audience Segmentation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.7.2/Recharts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #111827; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+const { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = Recharts;
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const CONTENT_ENVIRONMENTS = [
+  {
+    id: "sports", name: "Sports Programming", epgLabel: "Sports", color: "#2563eb", icon: "\u26A1",
+    shows: [
+      { id: "espn_sc", name: "SportsCenter", network: "ESPN", slots: "6AM, 11PM ET Daily",
+        weeklyData: [
+          { week: "W1", nba: 35, nfl: 25, mlb: 15, analysis: 15, other: 10 },
+          { week: "W2", nba: 38, nfl: 22, mlb: 14, analysis: 16, other: 10 },
+          { week: "W3", nba: 42, nfl: 18, mlb: 12, analysis: 18, other: 10 },
+          { week: "W4", nba: 45, nfl: 15, mlb: 10, analysis: 20, other: 10 },
+          { week: "W5", nba: 48, nfl: 12, mlb: 8, analysis: 22, other: 10 },
+          { week: "W6", nba: 50, nfl: 10, mlb: 8, analysis: 22, other: 10 },
+        ],
+        clusters: ["NBA-Heavy", "NFL Loyalist", "Analysis-Oriented", "Highlights-Only"],
+      },
+      { id: "mnf", name: "Monday Night Football", network: "ESPN/ABC", slots: "Mon 8:15PM ET",
+        weeklyData: [
+          { week: "W1", primetime: 65, casual: 20, betting: 10, social: 5 },
+          { week: "W2", primetime: 62, casual: 22, betting: 12, social: 4 },
+          { week: "W3", primetime: 58, casual: 25, betting: 13, social: 4 },
+          { week: "W4", primetime: 55, casual: 28, betting: 14, social: 3 },
+          { week: "W5", primetime: 52, casual: 30, betting: 15, social: 3 },
+          { week: "W6", primetime: 50, casual: 32, betting: 15, social: 3 },
+        ],
+        clusters: ["Primetime Loyalist", "Casual Viewer", "Betting-Engaged", "Social Viewer"],
+      },
+      { id: "nba_tnt", name: "NBA on TNT", network: "TNT", slots: "Tue/Thu 7:30PM ET",
+        weeklyData: [
+          { week: "W1", lakers: 30, celtics: 22, warriors: 18, general: 20, betting: 10 },
+          { week: "W2", lakers: 32, celtics: 20, warriors: 20, general: 18, betting: 10 },
+          { week: "W3", lakers: 28, celtics: 24, warriors: 22, general: 16, betting: 10 },
+          { week: "W4", lakers: 35, celtics: 18, warriors: 20, general: 17, betting: 10 },
+          { week: "W5", lakers: 33, celtics: 22, warriors: 19, general: 16, betting: 10 },
+          { week: "W6", lakers: 34, celtics: 21, warriors: 20, general: 15, betting: 10 },
+        ],
+        clusters: ["Lakers-Dominant", "Celtics Loyalist", "Warriors Fan", "General NBA", "Betting-Active"],
+      },
+      { id: "ufc", name: "UFC Fight Night", network: "ESPN+", slots: "Sat 7PM ET",
+        weeklyData: [
+          { week: "W1", hardcore: 45, ppv_only: 25, casual: 20, betting: 10 },
+          { week: "W2", hardcore: 48, ppv_only: 22, casual: 20, betting: 10 },
+          { week: "W3", hardcore: 50, ppv_only: 20, casual: 18, betting: 12 },
+          { week: "W4", hardcore: 52, ppv_only: 18, casual: 17, betting: 13 },
+          { week: "W5", hardcore: 55, ppv_only: 15, casual: 16, betting: 14 },
+          { week: "W6", hardcore: 58, ppv_only: 14, casual: 14, betting: 14 },
+        ],
+        clusters: ["Hardcore MMA", "PPV-Only", "Casual Combat", "Betting-Engaged"],
+      },
+    ],
+  },
+  {
+    id: "news", name: "National News", epgLabel: "News", color: "#059669", icon: "\uD83D\uDCF0",
+    shows: [
+      { id: "cnn_tonight", name: "CNN Tonight", network: "CNN", slots: "9PM ET Weeknights",
+        weeklyData: [
+          { week: "W1", politics: 40, economy: 25, health: 15, world: 12, tech: 8 },
+          { week: "W2", politics: 38, economy: 28, health: 14, world: 12, tech: 8 },
+          { week: "W3", politics: 35, economy: 30, health: 15, world: 12, tech: 8 },
+          { week: "W4", politics: 42, economy: 22, health: 16, world: 12, tech: 8 },
+          { week: "W5", politics: 45, economy: 20, health: 15, world: 12, tech: 8 },
+          { week: "W6", politics: 40, economy: 25, health: 15, world: 12, tech: 8 },
+        ],
+        clusters: ["Economy-Focused", "Political Junkie", "Health-Aware", "World Affairs"],
+      },
+      { id: "fox_prime", name: "Fox News Primetime", network: "Fox News", slots: "8PM ET Weeknights",
+        weeklyData: [
+          { week: "W1", politics: 50, economy: 20, culture: 15, security: 10, other: 5 },
+          { week: "W2", politics: 48, economy: 22, culture: 15, security: 10, other: 5 },
+          { week: "W3", politics: 52, economy: 18, culture: 15, security: 10, other: 5 },
+          { week: "W4", politics: 55, economy: 15, culture: 15, security: 10, other: 5 },
+          { week: "W5", politics: 50, economy: 20, culture: 15, security: 10, other: 5 },
+          { week: "W6", politics: 48, economy: 22, culture: 15, security: 10, other: 5 },
+        ],
+        clusters: ["Economy-Focused", "Political-Engaged", "Culture-Oriented", "Security-Minded"],
+      },
+      { id: "msnbc_morning", name: "Morning Joe", network: "MSNBC", slots: "6-9AM ET Weekdays",
+        weeklyData: [
+          { week: "W1", markets: 35, politics: 30, policy: 20, media: 10, other: 5 },
+          { week: "W2", markets: 38, politics: 28, policy: 18, media: 11, other: 5 },
+          { week: "W3", markets: 40, politics: 25, policy: 20, media: 10, other: 5 },
+          { week: "W4", markets: 42, politics: 24, policy: 18, media: 11, other: 5 },
+          { week: "W5", markets: 38, politics: 28, policy: 20, media: 9, other: 5 },
+          { week: "W6", markets: 36, politics: 30, policy: 20, media: 9, other: 5 },
+        ],
+        clusters: ["Market-Watcher", "Policy-Deep", "Media-Engaged", "Early Riser Professional"],
+      },
+    ],
+  },
+  {
+    id: "lifestyle", name: "Morning / Lifestyle / Talk", epgLabel: "Lifestyle / Talk", color: "#7c3aed", icon: "\u2600\uFE0F",
+    shows: [
+      { id: "today", name: "Today Show", network: "NBC", slots: "7-11AM ET Weekdays",
+        weeklyData: [
+          { week: "W1", parenting: 30, cooking: 22, health: 20, travel: 15, fashion: 13 },
+          { week: "W2", parenting: 32, cooking: 20, health: 22, travel: 14, fashion: 12 },
+          { week: "W3", parenting: 28, cooking: 24, health: 20, travel: 16, fashion: 12 },
+          { week: "W4", parenting: 35, cooking: 18, health: 22, travel: 13, fashion: 12 },
+          { week: "W5", parenting: 33, cooking: 20, health: 20, travel: 15, fashion: 12 },
+          { week: "W6", parenting: 34, cooking: 19, health: 21, travel: 14, fashion: 12 },
+        ],
+        clusters: ["Parenting-Active", "Cooking Enthusiast", "Health-Oriented", "Travel-Aspirational"],
+      },
+      { id: "gma", name: "Good Morning America", network: "ABC", slots: "7-9AM ET Weekdays",
+        weeklyData: [
+          { week: "W1", family: 28, wellness: 25, home: 20, finance: 15, entertainment: 12 },
+          { week: "W2", family: 30, wellness: 23, home: 22, finance: 14, entertainment: 11 },
+          { week: "W3", family: 26, wellness: 27, home: 20, finance: 16, entertainment: 11 },
+          { week: "W4", family: 32, wellness: 22, home: 18, finance: 17, entertainment: 11 },
+          { week: "W5", family: 29, wellness: 24, home: 21, finance: 15, entertainment: 11 },
+          { week: "W6", family: 30, wellness: 24, home: 20, finance: 15, entertainment: 11 },
+        ],
+        clusters: ["Family-Focused", "Wellness-Oriented", "Home Improver", "Finance-Aware"],
+      },
+      { id: "theview", name: "The View", network: "ABC", slots: "11AM ET Weekdays",
+        weeklyData: [
+          { week: "W1", culture: 35, politics: 25, celebrity: 20, health: 12, lifestyle: 8 },
+          { week: "W2", culture: 33, politics: 28, celebrity: 18, health: 13, lifestyle: 8 },
+          { week: "W3", culture: 37, politics: 22, celebrity: 22, health: 11, lifestyle: 8 },
+          { week: "W4", culture: 34, politics: 26, celebrity: 20, health: 12, lifestyle: 8 },
+          { week: "W5", culture: 36, politics: 24, celebrity: 20, health: 12, lifestyle: 8 },
+          { week: "W6", culture: 35, politics: 25, celebrity: 20, health: 12, lifestyle: 8 },
+        ],
+        clusters: ["Culture-Engaged", "Politically-Active", "Celebrity-Follower", "Health-Conscious"],
+      },
+    ],
+  },
+  {
+    id: "entertainment", name: "Primetime Entertainment", epgLabel: "Entertainment", color: "#dc2626", icon: "\uD83C\uDFAC",
+    shows: [
+      { id: "bachelor", name: "The Bachelor", network: "ABC", slots: "Mon 8PM ET",
+        weeklyData: [
+          { week: "W1", romance: 40, drama: 25, social: 20, fashion: 10, travel: 5 },
+          { week: "W2", romance: 42, drama: 23, social: 22, fashion: 8, travel: 5 },
+          { week: "W3", romance: 45, drama: 20, social: 22, fashion: 8, travel: 5 },
+          { week: "W4", romance: 48, drama: 18, social: 22, fashion: 7, travel: 5 },
+          { week: "W5", romance: 50, drama: 16, social: 22, fashion: 7, travel: 5 },
+          { week: "W6", romance: 52, drama: 15, social: 22, fashion: 6, travel: 5 },
+        ],
+        clusters: ["Romance-Engaged", "Drama-Seeker", "Social Viewer", "Fashion-Forward"],
+      },
+      { id: "survivor", name: "Survivor", network: "CBS", slots: "Wed 8PM ET",
+        weeklyData: [
+          { week: "W1", strategy: 35, adventure: 28, social_dynamics: 22, fitness: 10, other: 5 },
+          { week: "W2", strategy: 38, adventure: 26, social_dynamics: 22, fitness: 9, other: 5 },
+          { week: "W3", strategy: 40, adventure: 25, social_dynamics: 21, fitness: 9, other: 5 },
+          { week: "W4", strategy: 42, adventure: 23, social_dynamics: 21, fitness: 9, other: 5 },
+          { week: "W5", strategy: 44, adventure: 22, social_dynamics: 20, fitness: 9, other: 5 },
+          { week: "W6", strategy: 45, adventure: 21, social_dynamics: 20, fitness: 9, other: 5 },
+        ],
+        clusters: ["Strategy-Obsessed", "Adventure-Seeker", "Social Dynamics Fan", "Fitness-Oriented"],
+      },
+    ],
+  },
+];
+
+const AUDIENCE_TEMPLATES = {
+  "NBA-Heavy": { name: "NBA-Dominant Households", description: "Households where 40%+ of sports viewing is NBA content, sustained over 4+ weeks", size: "2.4M HHs", sizeNum: 2400000, confidence: 94, cpmBase: 8, cpmPremium: 28, advertisers: [{ name: "Nike Basketball", logo: "\uD83C\uDFC0", fit: 97 }, { name: "State Farm", logo: "\uD83C\uDFE0", fit: 89 }, { name: "DraftKings", logo: "\uD83C\uDFB0", fit: 85 }, { name: "Gatorade", logo: "\u26A1", fit: 82 }] },
+  "NFL Loyalist": { name: "NFL Primetime Loyalists", description: "Consistent NFL viewers who watch 60%+ of primetime games, skewing toward team loyalty", size: "8.1M HHs", sizeNum: 8100000, confidence: 91, cpmBase: 8, cpmPremium: 22, advertisers: [{ name: "Fanatics", logo: "\uD83C\uDFC8", fit: 96 }, { name: "Bud Light", logo: "\uD83C\uDF7A", fit: 92 }, { name: "Ford", logo: "\uD83D\uDE97", fit: 88 }, { name: "Papa Johns", logo: "\uD83C\uDF55", fit: 84 }] },
+  "Analysis-Oriented": { name: "Betting & Analysis-Oriented", description: "Viewers with high affinity for odds, statistics, and tactical breakdowns", size: "1.8M HHs", sizeNum: 1800000, confidence: 88, cpmBase: 8, cpmPremium: 35, advertisers: [{ name: "DraftKings", logo: "\uD83C\uDFB0", fit: 98 }, { name: "FanDuel", logo: "\uD83D\uDCCA", fit: 96 }, { name: "Charles Schwab", logo: "\uD83D\uDCB9", fit: 82 }, { name: "MGM BetMGM", logo: "\uD83C\uDFB2", fit: 90 }] },
+  "Highlights-Only": { name: "Highlights-Only Viewers", description: "Quick-consumption sports viewers \u2014 catch scores and highlights, rarely full games", size: "5.2M HHs", sizeNum: 5200000, confidence: 86, cpmBase: 8, cpmPremium: 14, advertisers: [{ name: "YouTube TV", logo: "\uD83D\uDCFA", fit: 90 }, { name: "ESPN+", logo: "\uD83D\uDCF1", fit: 88 }, { name: "Uber Eats", logo: "\uD83C\uDF54", fit: 80 }] },
+  "Primetime Loyalist": { name: "Primetime Sports Loyalists", description: "Appointment viewers who consistently watch major primetime sporting events", size: "6.5M HHs", sizeNum: 6500000, confidence: 92, cpmBase: 8, cpmPremium: 24, advertisers: [{ name: "Toyota", logo: "\uD83D\uDE97", fit: 91 }, { name: "Verizon", logo: "\uD83D\uDCF1", fit: 88 }, { name: "Geico", logo: "\uD83E\uDD8E", fit: 86 }] },
+  "Casual Viewer": { name: "Casual Sports Viewers", description: "Lean-back viewers who tune in occasionally, often for big moments only", size: "12.0M HHs", sizeNum: 12000000, confidence: 82, cpmBase: 8, cpmPremium: 12, advertisers: [{ name: "Amazon Prime", logo: "\uD83D\uDCE6", fit: 85 }, { name: "T-Mobile", logo: "\uD83D\uDCF1", fit: 82 }] },
+  "Betting-Engaged": { name: "Betting-Engaged Households", description: "Cross-sport betting-oriented viewers \u2014 high engagement with odds-related content", size: "3.1M HHs", sizeNum: 3100000, confidence: 90, cpmBase: 8, cpmPremium: 38, advertisers: [{ name: "DraftKings", logo: "\uD83C\uDFB0", fit: 98 }, { name: "FanDuel", logo: "\uD83D\uDCCA", fit: 97 }, { name: "Caesars Sportsbook", logo: "\uD83C\uDFDB\uFE0F", fit: 93 }, { name: "BetMGM", logo: "\uD83C\uDFB2", fit: 91 }] },
+  "Social Viewer": { name: "Social-First Viewers", description: "Viewers who engage heavily on second screens during live events", size: "4.8M HHs", sizeNum: 4800000, confidence: 84, cpmBase: 8, cpmPremium: 18, advertisers: [{ name: "Meta", logo: "\uD83D\uDCD8", fit: 90 }, { name: "TikTok", logo: "\uD83C\uDFB5", fit: 88 }] },
+  "Lakers-Dominant": { name: "Lakers-Dominant Households", description: "NBA viewers with 30%+ viewing concentrated on Lakers games & content", size: "1.9M HHs", sizeNum: 1900000, confidence: 93, cpmBase: 8, cpmPremium: 32, advertisers: [{ name: "Nike Basketball", logo: "\uD83C\uDFC0", fit: 96 }, { name: "Crypto.com", logo: "\uD83D\uDCB0", fit: 84 }, { name: "SoFi", logo: "\uD83C\uDFE6", fit: 82 }] },
+  "Celtics Loyalist": { name: "Celtics Loyalist Households", description: "Consistent Celtics viewership \u2014 20%+ of NBA viewing, sustained loyalty", size: "1.4M HHs", sizeNum: 1400000, confidence: 91, cpmBase: 8, cpmPremium: 30, advertisers: [{ name: "New Balance", logo: "\uD83D\uDC5F", fit: 94 }, { name: "Sam Adams", logo: "\uD83C\uDF7A", fit: 88 }, { name: "Fidelity", logo: "\uD83D\uDCB9", fit: 85 }] },
+  "Warriors Fan": { name: "Warriors Fan Households", description: "Golden State Warriors concentrated viewership over multiple weeks", size: "1.6M HHs", sizeNum: 1600000, confidence: 90, cpmBase: 8, cpmPremium: 30, advertisers: [{ name: "Under Armour", logo: "\uD83D\uDCAA", fit: 92 }, { name: "Google", logo: "\uD83D\uDD0D", fit: 88 }, { name: "Chase", logo: "\uD83C\uDFE6", fit: 85 }] },
+  "General NBA": { name: "General NBA Enthusiasts", description: "Broad NBA viewership without strong team concentration", size: "4.5M HHs", sizeNum: 4500000, confidence: 87, cpmBase: 8, cpmPremium: 20, advertisers: [{ name: "Nike", logo: "\u2714\uFE0F", fit: 92 }, { name: "Gatorade", logo: "\u26A1", fit: 88 }, { name: "State Farm", logo: "\uD83C\uDFE0", fit: 86 }] },
+  "Betting-Active": { name: "NBA Betting-Active", description: "NBA viewers with high engagement in betting-adjacent content and odds analysis", size: "1.2M HHs", sizeNum: 1200000, confidence: 89, cpmBase: 8, cpmPremium: 36, advertisers: [{ name: "DraftKings", logo: "\uD83C\uDFB0", fit: 97 }, { name: "FanDuel", logo: "\uD83D\uDCCA", fit: 95 }] },
+  "Hardcore MMA": { name: "Hardcore MMA Households", description: "Weekly UFC viewers \u2014 watch prelims, main cards, and post-fight analysis", size: "1.1M HHs", sizeNum: 1100000, confidence: 92, cpmBase: 8, cpmPremium: 30, advertisers: [{ name: "Monster Energy", logo: "\u26A1", fit: 95 }, { name: "Modelo", logo: "\uD83C\uDF7A", fit: 92 }, { name: "P3 Protein", logo: "\uD83D\uDCAA", fit: 85 }] },
+  "PPV-Only": { name: "PPV-Only Combat Fans", description: "Only tune in for marquee PPV events \u2014 Conor, Jones, Adesanya cards", size: "3.5M HHs", sizeNum: 3500000, confidence: 85, cpmBase: 8, cpmPremium: 16, advertisers: [{ name: "ESPN+", logo: "\uD83D\uDCF1", fit: 88 }, { name: "Toyo Tires", logo: "\uD83C\uDFCE\uFE0F", fit: 82 }] },
+  "Casual Combat": { name: "Casual Combat Sports", description: "Light viewers drawn by hype \u2014 social buzz drives tune-in", size: "5.0M HHs", sizeNum: 5000000, confidence: 80, cpmBase: 8, cpmPremium: 12, advertisers: [{ name: "YouTube", logo: "\u25B6\uFE0F", fit: 84 }, { name: "DoorDash", logo: "\uD83C\uDF54", fit: 80 }] },
+  "Economy-Focused": { name: "Economy-Focused Households", description: "News viewers concentrated on economic, market, and financial coverage", size: "3.8M HHs", sizeNum: 3800000, confidence: 90, cpmBase: 6, cpmPremium: 32, advertisers: [{ name: "Capital One", logo: "\uD83D\uDCB3", fit: 95 }, { name: "Charles Schwab", logo: "\uD83D\uDCB9", fit: 93 }, { name: "Goldman Sachs", logo: "\uD83C\uDFE6", fit: 88 }, { name: "Fidelity", logo: "\uD83D\uDCC8", fit: 90 }] },
+  "Political Junkie": { name: "Political-Engaged Households", description: "Intense political news consumers \u2014 watch multiple shows, follow elections closely", size: "5.5M HHs", sizeNum: 5500000, confidence: 88, cpmBase: 6, cpmPremium: 18, advertisers: [{ name: "Washington Post", logo: "\uD83D\uDCF0", fit: 85 }, { name: "Allstate", logo: "\uD83E\uDD32", fit: 80 }] },
+  "Health-Aware": { name: "Healthcare-System-Oriented", description: "News viewers with sustained interest in healthcare policy, pharma, wellness topics", size: "2.9M HHs", sizeNum: 2900000, confidence: 87, cpmBase: 6, cpmPremium: 34, advertisers: [{ name: "UnitedHealthcare", logo: "\uD83C\uDFE5", fit: 96 }, { name: "CVS Health", logo: "\uD83D\uDC8A", fit: 92 }, { name: "Pfizer", logo: "\uD83D\uDC89", fit: 88 }, { name: "Humana", logo: "\u2764\uFE0F", fit: 86 }] },
+  "World Affairs": { name: "World Affairs-Oriented", description: "International news-focused viewers \u2014 geopolitics, trade, global markets", size: "1.5M HHs", sizeNum: 1500000, confidence: 85, cpmBase: 6, cpmPremium: 28, advertisers: [{ name: "Emirates", logo: "\u2708\uFE0F", fit: 88 }, { name: "HSBC", logo: "\uD83C\uDFE6", fit: 86 }] },
+  "Political-Engaged": { name: "Politically-Engaged Households", description: "Deep political content consumers \u2014 primetime opinion, panel discussion viewers", size: "6.0M HHs", sizeNum: 6000000, confidence: 87, cpmBase: 6, cpmPremium: 16, advertisers: [{ name: "MyPillow", logo: "\uD83D\uDECF\uFE0F", fit: 82 }, { name: "Progressive Insurance", logo: "\uD83D\uDEE1\uFE0F", fit: 80 }] },
+  "Culture-Oriented": { name: "Culture & Values-Oriented", description: "Viewers drawn to cultural commentary and values-based discourse", size: "3.0M HHs", sizeNum: 3000000, confidence: 84, cpmBase: 6, cpmPremium: 18, advertisers: [{ name: "Hobby Lobby", logo: "\uD83C\uDFA8", fit: 84 }, { name: "Chick-fil-A", logo: "\uD83D\uDC14", fit: 82 }] },
+  "Security-Minded": { name: "Security-Minded Households", description: "Defense, security, and law enforcement content-focused viewers", size: "2.2M HHs", sizeNum: 2200000, confidence: 83, cpmBase: 6, cpmPremium: 22, advertisers: [{ name: "USAA", logo: "\uD83C\uDF96\uFE0F", fit: 94 }, { name: "SimpliSafe", logo: "\uD83D\uDD12", fit: 88 }] },
+  "Market-Watcher": { name: "Market & Investing-Oriented", description: "Early-riser professionals tracking markets, earnings, and financial news", size: "2.1M HHs", sizeNum: 2100000, confidence: 91, cpmBase: 6, cpmPremium: 38, advertisers: [{ name: "Charles Schwab", logo: "\uD83D\uDCB9", fit: 96 }, { name: "Bloomberg Terminal", logo: "\uD83D\uDCCA", fit: 92 }, { name: "Masterclass", logo: "\uD83C\uDF93", fit: 78 }] },
+  "Policy-Deep": { name: "Policy-Deep Households", description: "Viewers with deep engagement in policy analysis, regulation, governance", size: "1.8M HHs", sizeNum: 1800000, confidence: 86, cpmBase: 6, cpmPremium: 26, advertisers: [{ name: "The Economist", logo: "\uD83D\uDCF0", fit: 90 }, { name: "Deloitte", logo: "\uD83D\uDCBC", fit: 85 }] },
+  "Media-Engaged": { name: "Media-Industry-Engaged", description: "Meta-media consumers \u2014 interested in how media/journalism works", size: "0.9M HHs", sizeNum: 900000, confidence: 82, cpmBase: 6, cpmPremium: 24, advertisers: [{ name: "Substack", logo: "\uD83D\uDCDD", fit: 88 }, { name: "Apple News+", logo: "\uD83D\uDCF1", fit: 85 }] },
+  "Early Riser Professional": { name: "Early Riser Professionals", description: "6-9AM news viewers \u2014 high income, decision-maker skew", size: "3.5M HHs", sizeNum: 3500000, confidence: 89, cpmBase: 6, cpmPremium: 34, advertisers: [{ name: "BMW", logo: "\uD83D\uDE97", fit: 90 }, { name: "Rolex", logo: "\u231A", fit: 86 }, { name: "American Express", logo: "\uD83D\uDCB3", fit: 92 }] },
+  "Parenting-Active": { name: "Parenting-Active Households", description: "Longitudinal parenting segment engagement \u2014 child development, family planning, education", size: "4.5M HHs", sizeNum: 4500000, confidence: 91, cpmBase: 5, cpmPremium: 26, advertisers: [{ name: "Procter & Gamble", logo: "\uD83E\uDDF4", fit: 96 }, { name: "Target", logo: "\uD83C\uDFAF", fit: 92 }, { name: "Disney+", logo: "\uD83C\uDFF0", fit: 90 }, { name: "Johnson & Johnson", logo: "\uD83D\uDC76", fit: 88 }] },
+  "Cooking Enthusiast": { name: "Cooking Enthusiasts", description: "Recurring cooking segment viewers \u2014 recipe-oriented, food brand-responsive", size: "3.2M HHs", sizeNum: 3200000, confidence: 88, cpmBase: 5, cpmPremium: 22, advertisers: [{ name: "HelloFresh", logo: "\uD83E\uDD57", fit: 94 }, { name: "KitchenAid", logo: "\uD83C\uDF73", fit: 90 }, { name: "Whole Foods", logo: "\uD83E\uDD51", fit: 86 }] },
+  "Health-Oriented": { name: "Preventative Health-Oriented", description: "Sustained wellness/health segment viewers \u2014 fitness, nutrition, preventative care", size: "3.8M HHs", sizeNum: 3800000, confidence: 89, cpmBase: 5, cpmPremium: 30, advertisers: [{ name: "CVS Health", logo: "\uD83D\uDC8A", fit: 94 }, { name: "Peloton", logo: "\uD83D\uDEB4", fit: 90 }, { name: "Lululemon", logo: "\uD83E\uDDD8", fit: 86 }] },
+  "Travel-Aspirational": { name: "Travel-Aspirational Households", description: "High engagement with travel segments \u2014 destination features, luxury travel", size: "2.6M HHs", sizeNum: 2600000, confidence: 85, cpmBase: 5, cpmPremium: 28, advertisers: [{ name: "Marriott Bonvoy", logo: "\uD83C\uDFE8", fit: 94 }, { name: "Delta Airlines", logo: "\u2708\uFE0F", fit: 90 }, { name: "Expedia", logo: "\uD83C\uDF0D", fit: 88 }] },
+  "Family-Focused": { name: "Family-Focused Households", description: "Broad family lifestyle viewers \u2014 education, activities, household planning", size: "5.8M HHs", sizeNum: 5800000, confidence: 90, cpmBase: 5, cpmPremium: 22, advertisers: [{ name: "Walmart", logo: "\uD83D\uDED2", fit: 92 }, { name: "Disney+", logo: "\uD83C\uDFF0", fit: 90 }, { name: "State Farm", logo: "\uD83C\uDFE0", fit: 86 }] },
+  "Wellness-Oriented": { name: "Wellness-Oriented Households", description: "Mental health, mindfulness, and holistic wellness content consumers", size: "3.0M HHs", sizeNum: 3000000, confidence: 87, cpmBase: 5, cpmPremium: 26, advertisers: [{ name: "Calm", logo: "\uD83E\uDDD8", fit: 94 }, { name: "Whole Foods", logo: "\uD83E\uDD51", fit: 88 }, { name: "Lululemon", logo: "\uD83D\uDC5F", fit: 86 }] },
+  "Home Improver": { name: "Home Upgrade-Oriented", description: "Sustained home improvement, renovation, and DIY segment engagement", size: "4.0M HHs", sizeNum: 4000000, confidence: 89, cpmBase: 5, cpmPremium: 28, advertisers: [{ name: "Home Depot", logo: "\uD83D\uDD28", fit: 97 }, { name: "Lowe's", logo: "\uD83C\uDFE1", fit: 95 }, { name: "Wayfair", logo: "\uD83D\uDECB\uFE0F", fit: 88 }] },
+  "Finance-Aware": { name: "Consumer Finance-Aware", description: "Personal finance, budgeting, and investment segment engagement", size: "2.8M HHs", sizeNum: 2800000, confidence: 86, cpmBase: 5, cpmPremium: 32, advertisers: [{ name: "Capital One", logo: "\uD83D\uDCB3", fit: 94 }, { name: "Mint/Intuit", logo: "\uD83D\uDCCA", fit: 90 }, { name: "Vanguard", logo: "\uD83D\uDCC8", fit: 86 }] },
+  "Culture-Engaged": { name: "Culture-Engaged Households", description: "Pop culture, social trends, and cultural commentary viewers", size: "3.5M HHs", sizeNum: 3500000, confidence: 85, cpmBase: 5, cpmPremium: 18, advertisers: [{ name: "Netflix", logo: "\uD83C\uDFAC", fit: 88 }, { name: "Spotify", logo: "\uD83C\uDFB5", fit: 86 }] },
+  "Politically-Active": { name: "Politically-Active Households", description: "Cross-network political consumers who watch multiple angles", size: "4.2M HHs", sizeNum: 4200000, confidence: 86, cpmBase: 5, cpmPremium: 20, advertisers: [{ name: "New York Times", logo: "\uD83D\uDCF0", fit: 87 }, { name: "T-Mobile", logo: "\uD83D\uDCF1", fit: 78 }] },
+  "Celebrity-Follower": { name: "Celebrity-Follower Households", description: "Celebrity news, entertainment gossip, and star-driven content consumers", size: "4.2M HHs", sizeNum: 4200000, confidence: 83, cpmBase: 5, cpmPremium: 16, advertisers: [{ name: "Sephora", logo: "\uD83D\uDC84", fit: 88 }, { name: "Fashion Nova", logo: "\uD83D\uDC57", fit: 84 }] },
+  "Health-Conscious": { name: "Health-Conscious Daytime", description: "Daytime viewers with strong health content affinity", size: "2.5M HHs", sizeNum: 2500000, confidence: 86, cpmBase: 5, cpmPremium: 24, advertisers: [{ name: "Walgreens", logo: "\uD83D\uDC8A", fit: 90 }, { name: "Fitbit", logo: "\u231A", fit: 86 }] },
+  "Romance-Engaged": { name: "Romance-Engaged Households", description: "High engagement with romance/relationship programming \u2014 sustained viewers", size: "3.8M HHs", sizeNum: 3800000, confidence: 88, cpmBase: 5, cpmPremium: 20, advertisers: [{ name: "Hallmark", logo: "\uD83D\uDC8C", fit: 92 }, { name: "Kay Jewelers", logo: "\uD83D\uDC8E", fit: 90 }, { name: "Hinge", logo: "\u2764\uFE0F", fit: 86 }] },
+  "Drama-Seeker": { name: "Drama-Seeker Households", description: "Viewers drawn to high-conflict, emotional storytelling across formats", size: "5.0M HHs", sizeNum: 5000000, confidence: 84, cpmBase: 5, cpmPremium: 14, advertisers: [{ name: "Hulu", logo: "\uD83D\uDCFA", fit: 86 }, { name: "Peacock", logo: "\uD83E\uDD9A", fit: 84 }] },
+  "Fashion-Forward": { name: "Fashion-Forward Households", description: "Fashion, style, and beauty content-engaged \u2014 responsive to luxury/lifestyle brands", size: "2.0M HHs", sizeNum: 2000000, confidence: 86, cpmBase: 5, cpmPremium: 30, advertisers: [{ name: "Nordstrom", logo: "\uD83D\uDC57", fit: 94 }, { name: "Sephora", logo: "\uD83D\uDC84", fit: 92 }, { name: "Gucci", logo: "\uD83D\uDC5C", fit: 86 }] },
+  "Strategy-Obsessed": { name: "Strategy-Obsessed Households", description: "Competition/strategy reality viewers \u2014 analytically minded, engaged weekly", size: "2.8M HHs", sizeNum: 2800000, confidence: 87, cpmBase: 5, cpmPremium: 20, advertisers: [{ name: "REI", logo: "\u26FA", fit: 88 }, { name: "The North Face", logo: "\uD83C\uDFD4\uFE0F", fit: 86 }, { name: "Masterclass", logo: "\uD83C\uDF93", fit: 82 }] },
+  "Adventure-Seeker": { name: "Adventure-Seeker Households", description: "Outdoor, adventure, and physical challenge content consumers", size: "3.2M HHs", sizeNum: 3200000, confidence: 85, cpmBase: 5, cpmPremium: 22, advertisers: [{ name: "Jeep", logo: "\uD83D\uDE99", fit: 92 }, { name: "GoPro", logo: "\uD83D\uDCF7", fit: 90 }, { name: "Patagonia", logo: "\uD83C\uDFD4\uFE0F", fit: 88 }] },
+  "Social Dynamics Fan": { name: "Social Dynamics Fans", description: "Viewers engaged by interpersonal dynamics, alliances, and group behavior", size: "4.0M HHs", sizeNum: 4000000, confidence: 83, cpmBase: 5, cpmPremium: 16, advertisers: [{ name: "Bumble", logo: "\uD83D\uDC1D", fit: 84 }, { name: "Netflix", logo: "\uD83C\uDFAC", fit: 82 }] },
+  "Fitness-Oriented": { name: "Fitness-Oriented Households", description: "Physical fitness and athletic performance content consumers", size: "2.4M HHs", sizeNum: 2400000, confidence: 86, cpmBase: 5, cpmPremium: 26, advertisers: [{ name: "Nike Training", logo: "\uD83D\uDCAA", fit: 94 }, { name: "Peloton", logo: "\uD83D\uDEB4", fit: 92 }, { name: "GNC", logo: "\uD83D\uDC8A", fit: 86 }] },
+};
+
+const CHART_COLORS = ["#2563eb", "#059669", "#7c3aed", "#dc2626", "#f59e0b", "#06b6d4", "#ec4899", "#84cc16"];
+
+// ─── COMPONENTS ──────────────────────────────────────────────────────────────
+
+function Badge({ children, color = "#2563eb", variant = "solid" }) {
+  return React.createElement("span", { style: { display: "inline-flex", alignItems: "center", padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, letterSpacing: 0.3, background: variant === "solid" ? color : color + "15", color: variant === "solid" ? "#fff" : color, border: variant === "outline" ? "1.5px solid " + color : "none" } }, children);
+}
+
+function ProgressBar({ value, max = 100, color = "#2563eb", height = 6 }) {
+  return React.createElement("div", { style: { width: "100%", background: "#e5e7eb", borderRadius: height, height, overflow: "hidden" } },
+    React.createElement("div", { style: { width: (value / max * 100) + "%", height: "100%", background: color, borderRadius: height, transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)" } })
+  );
+}
+
+function Card({ children, style = {}, onClick, hoverable = false }) {
+  const [hovered, setHovered] = useState(false);
+  return React.createElement("div", {
+    onClick, style: { background: "#fff", borderRadius: 12, border: "1px solid " + (hovered && hoverable ? "#c7d2fe" : "#e5e7eb"), padding: 20, cursor: onClick ? "pointer" : "default", transition: "all 0.2s", boxShadow: hovered && hoverable ? "0 4px 12px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)", ...style },
+    onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false)
+  }, children);
+}
+
+// ─── MAIN ────────────────────────────────────────────────────────────────────
+
+function App() {
+  const [step, setStep] = useState(0);
+  const [selectedEnv, setSelectedEnv] = useState(null);
+  const [selectedShow, setSelectedShow] = useState(null);
+  const [selectedClusters, setSelectedClusters] = useState([]);
+
+  const env = CONTENT_ENVIRONMENTS.find(e => e.id === selectedEnv);
+  const show = env && env.shows.find(s => s.id === selectedShow);
+
+  const handleEnvSelect = (id) => { setSelectedEnv(id); setSelectedShow(null); setSelectedClusters([]); setStep(1); };
+  const handleShowSelect = (id) => { setSelectedShow(id); setSelectedClusters([]); setStep(2); };
+  const handleClusterToggle = (c) => { setSelectedClusters(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]); };
+  const handleViewAudience = () => { if (selectedClusters.length > 0) setStep(3); };
+  const handleBack = () => {
+    if (step === 3) { setStep(2); }
+    else if (step === 2) { setStep(1); setSelectedShow(null); setSelectedClusters([]); }
+    else if (step === 1) { setStep(0); setSelectedEnv(null); }
+  };
+  const handleReset = () => { setStep(0); setSelectedEnv(null); setSelectedShow(null); setSelectedClusters([]); };
+
+  const combinedAudience = useMemo(() => {
+    if (selectedClusters.length === 0) return null;
+    const audiences = selectedClusters.map(c => AUDIENCE_TEMPLATES[c]).filter(Boolean);
+    if (audiences.length === 0) return null;
+    const totalSize = audiences.reduce((s, a) => s + a.sizeNum, 0);
+    const avgConfidence = Math.round(audiences.reduce((s, a) => s + a.confidence, 0) / audiences.length);
+    const avgCpmBase = Math.round(audiences.reduce((s, a) => s + a.cpmBase, 0) / audiences.length);
+    const avgCpmPremium = Math.round(audiences.reduce((s, a) => s + a.cpmPremium, 0) / audiences.length);
+    const allAdv = {};
+    audiences.forEach(a => a.advertisers.forEach(ad => { if (!allAdv[ad.name] || allAdv[ad.name].fit < ad.fit) allAdv[ad.name] = ad; }));
+    const topAdvertisers = Object.values(allAdv).sort((a, b) => b.fit - a.fit).slice(0, 6);
+    return { audiences, totalSize, avgConfidence, avgCpmBase, avgCpmPremium, topAdvertisers };
+  }, [selectedClusters]);
+
+  const stepLabels = ["Content Environment", "Program Selection", "BluePrint Intelligence", "Audience Detail"];
+
+  // ─── RENDER ──────────────────────────────────────────────────────────────
+  return React.createElement("div", { style: { fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", background: "#f8fafc", minHeight: "100vh", color: "#111827" } },
+
+    // HEADER
+    React.createElement("div", { style: { background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", padding: "20px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" } },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 16 } },
+        React.createElement("div", { style: { width: 36, height: 36, borderRadius: 8, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#fff" } }, "B"),
+        React.createElement("div", null,
+          React.createElement("div", { style: { color: "#fff", fontSize: 16, fontWeight: 700, letterSpacing: -0.3 } }, "BluePrint AI"),
+          React.createElement("div", { style: { color: "#94a3b8", fontSize: 11 } }, "Advanced Audience Segmentation")
+        )
+      ),
+      React.createElement("div", { style: { display: "flex", gap: 8 } },
+        React.createElement(Badge, { color: "#3b82f6" }, "VIDEO AI ANALYTICS"),
+        React.createElement(Badge, { color: "#8b5cf6" }, "INTERACTIVE DEMO")
+      )
+    ),
+
+    // STEP INDICATOR
+    React.createElement("div", { style: { background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "12px 32px", display: "flex", alignItems: "center", gap: 8 } },
+      step > 0 && React.createElement("button", { onClick: handleBack, style: { background: "none", border: "1px solid #d1d5db", borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 12, color: "#6b7280", marginRight: 8 } }, "\u2190 Back"),
+      stepLabels.map((label, i) => React.createElement(React.Fragment, { key: i },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+          React.createElement("div", { style: { width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, background: i <= step ? "#2563eb" : "#e5e7eb", color: i <= step ? "#fff" : "#9ca3af" } }, i < step ? "\u2713" : i + 1),
+          React.createElement("span", { style: { fontSize: 12, color: i === step ? "#111827" : "#9ca3af", fontWeight: i === step ? 600 : 400 } }, label),
+          i < stepLabels.length - 1 && React.createElement("div", { style: { width: 32, height: 1, background: i < step ? "#2563eb" : "#e5e7eb" } })
+        )
+      )),
+      step > 0 && React.createElement("button", { onClick: handleReset, style: { marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#6b7280", textDecoration: "underline" } }, "Start Over")
+    ),
+
+    // CONTENT
+    React.createElement("div", { style: { maxWidth: 1200, margin: "0 auto", padding: "24px 32px" } },
+
+      // STEP 0
+      step === 0 && React.createElement("div", null,
+        React.createElement("div", { style: { marginBottom: 24 } },
+          React.createElement("h2", { style: { fontSize: 22, fontWeight: 700, margin: 0, marginBottom: 4 } }, "Select Content Environment"),
+          React.createElement("p", { style: { color: "#6b7280", fontSize: 14, margin: 0 } }, 'EPG says "Sports" \u2014 BluePrint Intelligence (built longitudinally) says "NBA-Dominant Households"')
+        ),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 } },
+          CONTENT_ENVIRONMENTS.map(env => React.createElement(Card, { key: env.id, hoverable: true, onClick: () => handleEnvSelect(env.id), style: { position: "relative", overflow: "hidden" } },
+            React.createElement("div", { style: { position: "absolute", top: 0, left: 0, width: 4, height: "100%", background: env.color } }),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12, paddingLeft: 8 } },
+              React.createElement("span", { style: { fontSize: 28 } }, env.icon),
+              React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: 16, fontWeight: 600 } }, env.name),
+                React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 4 } },
+                  React.createElement(Badge, { color: "#9ca3af", variant: "outline" }, "EPG: " + env.epgLabel),
+                  React.createElement(Badge, { color: env.color, variant: "outline" }, env.shows.length + " Programs")
+                )
+              )
+            ),
+            React.createElement("div", { style: { paddingLeft: 8, display: "flex", flexWrap: "wrap", gap: 4 } },
+              env.shows.map(s => React.createElement("span", { key: s.id, style: { fontSize: 11, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 } }, s.name))
+            )
+          ))
+        ),
+        React.createElement("div", { style: { marginTop: 24, background: "linear-gradient(135deg, #eff6ff, #f5f3ff)", borderRadius: 12, padding: 20, border: "1px solid #c7d2fe" } },
+          React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
+            React.createElement("div", { style: { fontSize: 20, marginTop: 2 } }, "\uD83D\uDCA1"),
+            React.createElement("div", null,
+              React.createElement("div", { style: { fontWeight: 600, fontSize: 14, marginBottom: 4 } }, "Why BluePrint Changes Everything"),
+              React.createElement("div", { style: { fontSize: 13, color: "#4b5563", lineHeight: 1.5 } },
+                "Traditional EPG metadata gives you genre labels. BluePrint AI analyzes viewing patterns ",
+                React.createElement("strong", null, "longitudinally over weeks"),
+                " \u2014 detecting what households actually care about, not just what channel they're on. This turns a $8 CPM \"Sports\" audience into a $28-38 CPM \"NBA-Dominant\" or \"Betting-Engaged\" audience."
+              )
+            )
+          )
+        )
+      ),
+
+      // STEP 1
+      step === 1 && env && React.createElement("div", null,
+        React.createElement("div", { style: { marginBottom: 24, display: "flex", alignItems: "center", gap: 12 } },
+          React.createElement("span", { style: { fontSize: 28 } }, env.icon),
+          React.createElement("div", null,
+            React.createElement("h2", { style: { fontSize: 22, fontWeight: 700, margin: 0 } }, env.name),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 4 } },
+              React.createElement(Badge, { color: "#9ca3af", variant: "outline" }, "EPG Label: " + env.epgLabel)
+            )
+          )
+        ),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 } },
+          env.shows.map(show => React.createElement(Card, { key: show.id, hoverable: true, onClick: () => handleShowSelect(show.id) },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 } },
+              React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: 16, fontWeight: 600 } }, show.name),
+                React.createElement("div", { style: { fontSize: 12, color: "#6b7280" } }, show.network + " \u00B7 " + show.slots)
+              ),
+              React.createElement(Badge, { color: env.color }, show.clusters.length + " Segments")
+            ),
+            React.createElement("div", { style: { fontSize: 12, color: "#6b7280", marginBottom: 12 } }, "BluePrint detects " + show.clusters.length + " distinct audience clusters from longitudinal viewing:"),
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
+              show.clusters.map((c, i) => React.createElement(Badge, { key: c, color: CHART_COLORS[i % CHART_COLORS.length], variant: "outline" }, c))
+            )
+          ))
+        )
+      ),
+
+      // STEP 2
+      step === 2 && show && env && React.createElement("div", null,
+        React.createElement("div", { style: { marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 12, color: "#6b7280", marginBottom: 4 } }, env.icon + " " + env.name),
+            React.createElement("h2", { style: { fontSize: 22, fontWeight: 700, margin: 0 } }, show.name),
+            React.createElement("div", { style: { fontSize: 13, color: "#6b7280", marginTop: 2 } }, show.network + " \u00B7 " + show.slots)
+          ),
+          React.createElement("div", { style: { textAlign: "right" } },
+            React.createElement("div", { style: { fontSize: 11, color: "#6b7280", marginBottom: 4 } }, "LONGITUDINAL ANALYSIS"),
+            React.createElement(Badge, { color: "#059669" }, "6-Week Window")
+          )
+        ),
+        // EPG vs BluePrint
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "280px 1fr", gap: 16, marginBottom: 20 } },
+          React.createElement(Card, { style: { background: "#fef3c7", borderColor: "#f59e0b" } },
+            React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 } }, "What EPG Sees"),
+            React.createElement("div", { style: { fontSize: 36, fontWeight: 700, color: "#92400e", marginBottom: 4 } }, env.epgLabel),
+            React.createElement("div", { style: { fontSize: 12, color: "#92400e" } }, "Single genre label. One audience. One CPM."),
+            React.createElement("div", { style: { marginTop: 16, padding: "12px 0", borderTop: "1px dashed #f59e0b" } },
+              React.createElement("div", { style: { fontSize: 11, color: "#92400e" } }, "Typical CPM"),
+              React.createElement("div", { style: { fontSize: 24, fontWeight: 700, color: "#92400e" } }, "$6\u20138")
+            )
+          ),
+          React.createElement(Card, null,
+            React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#2563eb", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 } }, "What BluePrint Sees \u2014 Viewing Pattern Clusters Over 6 Weeks"),
+            React.createElement("div", { style: { height: 200 } },
+              React.createElement(ResponsiveContainer, { width: "100%", height: "100%" },
+                React.createElement(AreaChart, { data: show.weeklyData },
+                  React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "#f0f0f0" }),
+                  React.createElement(XAxis, { dataKey: "week", fontSize: 11 }),
+                  React.createElement(YAxis, { fontSize: 11, tickFormatter: v => v + "%" }),
+                  React.createElement(Tooltip, { formatter: v => v + "%" }),
+                  ...Object.keys(show.weeklyData[0]).filter(k => k !== "week").map((key, i) =>
+                    React.createElement(Area, { key, type: "monotone", dataKey: key, stackId: "1", fill: CHART_COLORS[i % CHART_COLORS.length], stroke: CHART_COLORS[i % CHART_COLORS.length], fillOpacity: 0.7 })
+                  )
+                )
+              )
+            )
+          )
+        ),
+        // Cluster selection
+        React.createElement(Card, { style: { marginBottom: 16 } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
+            React.createElement("div", null,
+              React.createElement("div", { style: { fontSize: 14, fontWeight: 600 } }, "Build Your Audience"),
+              React.createElement("div", { style: { fontSize: 12, color: "#6b7280" } }, "Select one or more AI-detected audience clusters")
+            ),
+            selectedClusters.length > 0 && React.createElement("button", { onClick: handleViewAudience, style: { background: "linear-gradient(135deg, #2563eb, #7c3aed)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 13, fontWeight: 600, cursor: "pointer" } }, "Create Audience (" + selectedClusters.length + " selected) \u2192")
+          ),
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 } },
+            show.clusters.map((cluster, i) => {
+              const ad = AUDIENCE_TEMPLATES[cluster];
+              const sel = selectedClusters.includes(cluster);
+              return React.createElement("div", { key: cluster, onClick: () => handleClusterToggle(cluster), style: { padding: "14px 16px", borderRadius: 10, border: sel ? "2px solid " + CHART_COLORS[i % CHART_COLORS.length] : "1.5px solid #e5e7eb", background: sel ? CHART_COLORS[i % CHART_COLORS.length] + "08" : "#fff", cursor: "pointer", transition: "all 0.2s", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                  React.createElement("div", { style: { width: 20, height: 20, borderRadius: 4, border: "2px solid " + (sel ? CHART_COLORS[i % CHART_COLORS.length] : "#d1d5db"), background: sel ? CHART_COLORS[i % CHART_COLORS.length] : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff" } }, sel && "\u2713"),
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } }, ad ? ad.name : cluster),
+                    React.createElement("div", { style: { fontSize: 11, color: "#6b7280", marginTop: 2 } }, ad ? ad.size : "\u2014")
+                  )
+                ),
+                React.createElement("div", { style: { textAlign: "right" } },
+                  React.createElement("div", { style: { fontSize: 11, color: "#6b7280" } }, "Premium CPM"),
+                  React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: CHART_COLORS[i % CHART_COLORS.length] } }, "$" + (ad ? ad.cpmPremium : "\u2014"))
+                )
+              );
+            })
+          )
+        )
+      ),
+
+      // STEP 3
+      step === 3 && combinedAudience && show && env && React.createElement("div", null,
+        React.createElement("div", { style: { marginBottom: 20 } },
+          React.createElement("div", { style: { fontSize: 12, color: "#6b7280", marginBottom: 4 } }, env.icon + " " + env.name + " \u2192 " + show.name),
+          React.createElement("h2", { style: { fontSize: 22, fontWeight: 700, margin: 0 } }, selectedClusters.length === 1 ? AUDIENCE_TEMPLATES[selectedClusters[0]].name : "Custom Audience (" + selectedClusters.length + " Clusters)")
+        ),
+        // KPIs
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 } },
+          [
+            { label: "Addressable HHs", value: combinedAudience.totalSize >= 1e6 ? (combinedAudience.totalSize / 1e6).toFixed(1) + "M" : (combinedAudience.totalSize / 1e3).toFixed(0) + "K", sub: "Deduplicated reach", color: "#2563eb" },
+            { label: "Confidence Score", value: combinedAudience.avgConfidence + "%", sub: "Longitudinal certainty", color: "#059669" },
+            { label: "EPG CPM", value: "$" + combinedAudience.avgCpmBase, sub: "Basic genre targeting", color: "#9ca3af" },
+            { label: "BluePrint CPM", value: "$" + combinedAudience.avgCpmPremium, sub: Math.round((combinedAudience.avgCpmPremium / combinedAudience.avgCpmBase - 1) * 100) + "% premium", color: "#7c3aed" },
+          ].map(kpi => React.createElement(Card, { key: kpi.label },
+            React.createElement("div", { style: { fontSize: 11, color: "#6b7280", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 } }, kpi.label),
+            React.createElement("div", { style: { fontSize: 28, fontWeight: 700, color: kpi.color } }, kpi.value),
+            React.createElement("div", { style: { fontSize: 11, color: "#9ca3af", marginTop: 4 } }, kpi.sub)
+          ))
+        ),
+        // Charts
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 } },
+          React.createElement(Card, null,
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 12 } }, "CPM Uplift by Cluster"),
+            React.createElement("div", { style: { height: 220 } },
+              React.createElement(ResponsiveContainer, { width: "100%", height: "100%" },
+                React.createElement(BarChart, { data: combinedAudience.audiences.map((a, i) => ({ name: selectedClusters[i].length > 18 ? selectedClusters[i].substring(0, 16) + "\u2026" : selectedClusters[i], "EPG CPM": a.cpmBase, "BluePrint CPM": a.cpmPremium })), layout: "vertical", margin: { left: 10 } },
+                  React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "#f0f0f0" }),
+                  React.createElement(XAxis, { type: "number", fontSize: 11, tickFormatter: v => "$" + v }),
+                  React.createElement(YAxis, { type: "category", dataKey: "name", fontSize: 10, width: 130 }),
+                  React.createElement(Tooltip, { formatter: v => "$" + v }),
+                  React.createElement(Bar, { dataKey: "EPG CPM", fill: "#d1d5db", radius: [0, 4, 4, 0], barSize: 14 }),
+                  React.createElement(Bar, { dataKey: "BluePrint CPM", fill: "#2563eb", radius: [0, 4, 4, 0], barSize: 14 })
+                )
+              )
+            )
+          ),
+          React.createElement(Card, null,
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 12 } }, "Matched Advertisers"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+              combinedAudience.topAdvertisers.map(adv => React.createElement("div", { key: adv.name, style: { display: "flex", alignItems: "center", gap: 12 } },
+                React.createElement("div", { style: { width: 32, height: 32, borderRadius: 8, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 } }, adv.logo),
+                React.createElement("div", { style: { flex: 1 } },
+                  React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 500 } }, adv.name),
+                    React.createElement("span", { style: { fontSize: 11, color: "#059669", fontWeight: 600 } }, adv.fit + "% fit")
+                  ),
+                  React.createElement(ProgressBar, { value: adv.fit, color: "#059669" })
+                )
+              ))
+            )
+          )
+        ),
+        // Revenue model
+        React.createElement(Card, { style: { background: "linear-gradient(135deg, #0f172a, #1e293b)", color: "#fff", marginBottom: 20 } },
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 16, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5 } }, "Revenue Impact Model"),
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 } },
+            React.createElement("div", null,
+              React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", marginBottom: 4 } }, "Monthly Impressions (Est.)"),
+              React.createElement("div", { style: { fontSize: 24, fontWeight: 700 } }, (combinedAudience.totalSize * 30 / 1e6).toFixed(0) + "M"),
+              React.createElement("div", { style: { fontSize: 11, color: "#64748b" } }, "Based on 1 imp/HH/day avg")
+            ),
+            React.createElement("div", null,
+              React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", marginBottom: 4 } }, "Monthly Revenue @ EPG CPM"),
+              React.createElement("div", { style: { fontSize: 24, fontWeight: 700, color: "#94a3b8" } }, "$" + (combinedAudience.totalSize * 30 / 1e3 * combinedAudience.avgCpmBase / 1e6).toFixed(1) + "M"),
+              React.createElement("div", { style: { fontSize: 11, color: "#64748b" } }, "Current yield")
+            ),
+            React.createElement("div", null,
+              React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", marginBottom: 4 } }, "Monthly Revenue @ BluePrint CPM"),
+              React.createElement("div", { style: { fontSize: 24, fontWeight: 700, color: "#3b82f6" } }, "$" + (combinedAudience.totalSize * 30 / 1e3 * combinedAudience.avgCpmPremium / 1e6).toFixed(1) + "M"),
+              React.createElement("div", { style: { fontSize: 11, color: "#60a5fa" } }, "+$" + (combinedAudience.totalSize * 30 / 1e3 * (combinedAudience.avgCpmPremium - combinedAudience.avgCpmBase) / 1e6).toFixed(1) + "M incremental")
+            )
+          )
+        ),
+        // Segments detail
+        selectedClusters.length > 1 && React.createElement(Card, null,
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 12 } }, "Included Segments"),
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 } },
+            combinedAudience.audiences.map((a, i) => React.createElement("div", { key: i, style: { padding: 12, background: "#f8fafc", borderRadius: 8, border: "1px solid #e5e7eb" } },
+              React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 4 } }, a.name),
+              React.createElement("div", { style: { fontSize: 11, color: "#6b7280", marginBottom: 8 } }, a.description),
+              React.createElement("div", { style: { display: "flex", gap: 12 } },
+                React.createElement("span", { style: { fontSize: 11 } }, "\uD83D\uDCCA " + a.size),
+                React.createElement("span", { style: { fontSize: 11 } }, "\uD83C\uDFAF " + a.confidence + "% confidence"),
+                React.createElement("span", { style: { fontSize: 11 } }, "\uD83D\uDCB0 $" + a.cpmPremium + " CPM")
+              )
+            ))
+          )
+        ),
+        // Samsung callout
+        React.createElement("div", { style: { marginTop: 20, padding: 16, borderRadius: 12, border: "2px solid #059669", background: "#f0fdf4", display: "flex", alignItems: "center", gap: 12 } },
+          React.createElement("div", { style: { width: 36, height: 36, borderRadius: "50%", background: "#059669", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16, fontWeight: 700, flexShrink: 0 } }, "\u25C9"),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: "#065f46" } }, '"Samsung Audiences" \u2014 Programmatic & Direct'),
+            React.createElement("div", { style: { fontSize: 12, color: "#047857" } }, "AI-enabled premium longitudinal audiences sold via OEM DSP or Direct. Built over weeks/months of viewing ('EPG on steroids').")
+          )
+        )
+      )
+    ),
+
+    // FOOTER
+    React.createElement("div", { style: { borderTop: "1px solid #e5e7eb", padding: "12px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 40, background: "#fff" } },
+      React.createElement("div", { style: { fontSize: 11, color: "#9ca3af" } }, "CCR Media Cloud \u00B7 BluePrint AI \u00B7 CONFIDENTIAL"),
+      React.createElement("div", { style: { fontSize: 11, color: "#9ca3af" } }, "Interactive Demo \u2014 Mock Data for Illustration")
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
